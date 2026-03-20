@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vuln_db
+    environment:
+      POSTGRES_DB: vulndb
+      POSTGRES_USER: vulnuser
+      POSTGRES_PASSWORD: "VulnSecure2024!"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vulnuser -d vulndb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vuln_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vuln_backend
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: "postgresql://vulnuser:VulnSecure2024!@db:5432/vulndb"
+      JWT_SECRET: "a9f2c8e1d4b7f3a6c9e2d5b8f1a4c7e0d3b6f9a2c5e8d1b4f7a0c3e6d9b2f5"
+      JWT_EXPIRES_IN: 24h
+      FRONTEND_URL: "http://localhost:3000"
+      SITE_URL: "http://localhost:3000"
+      # Email (optional - system works without it, reset token logged to console)
+      # SMTP_HOST: mailpit
+      # SMTP_PORT: 1025
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - vuln_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+        VITE_WS_URL: ""
+    container_name: vuln_frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    networks:
+      - vuln_network
+
+volumes:
+  postgres_data:
+  uploads_data:
+
+networks:
+  vuln_network:
+    driver: bridge
